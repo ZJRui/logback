@@ -132,6 +132,11 @@ public class AsyncAppenderBase<E> extends UnsynchronizedAppenderBase<E> implemen
 
         // interrupt the worker thread so that it can terminate. Note that the
         // interruption can be consumed by sub-appenders
+        /**
+         *
+         * worker线程可能会阻塞在take的地方 需要中断worker线程 退出
+         *   当前贤线程中断了 worker 线程，然后执行了 worker.join(maxFlushTime);等待 worker线程的退出，最终使用worker.isAlive方法判断是否存活
+         */
         worker.interrupt();
 
         InterruptUtil interruptUtil = new InterruptUtil(context);
