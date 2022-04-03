@@ -291,6 +291,34 @@ public class AsyncAppenderBase<E> extends UnsynchronizedAppenderBase<E> implemen
             AsyncAppenderBase<E> parent = AsyncAppenderBase.this;
             AppenderAttachableImpl<E> aai = parent.aai;
 
+            /**
+             *
+             *
+             从阻塞队列中取出数据的方式 有三种方式
+             获取数据：
+             　　poll(time):取走BlockingQueue里排在首位的对象,若不能立即取出,则可以等time参数规定的时间,
+             　　　　取不到时返回null;
+             　　poll(long timeout, TimeUnit unit)：从BlockingQueue取出一个队首的对象，如果在指定时间内，
+             　　　　队列一旦有数据可取，则立即返回队列中的数据。否则知道时间超时还没有数据可取，返回失败。
+             　　take():取走BlockingQueue里排在首位的对象,若BlockingQueue为空,阻断进入等待状态直到
+             　　　　BlockingQueue有新的数据被加入;
+             　　drainTo():一次性从BlockingQueue获取所有可用的数据对象（还可以指定获取数据的个数），
+             　　　　通过该方法，可以提升获取数据效率；不需要多次分批加锁或释放锁。
+
+             （1）而drainTo是批量获取，为空不阻塞。 我们想要的结果是为空的时候需要阻塞，不然会一直占用cpu
+             （2）尝试将元素添加到集合 c 时遇到的失败可能会导致在引发相关异常时元素既不在集合中，又不属于任何一个集合或两个集合。
+
+
+             实现批量从队列中取数据且当队列为空的时候 进行阻塞当前线程，如果不阻塞当前线程就会导致当前线程长期占用cpu 是有必要的，有两种实现方案
+             （1）logback 先使用take阻塞当前线程，然后drainTo.队列中没有数据导致当前线程长期阻塞，如果想退出的话需要中断当前线程
+
+             （2）Debezium 自己实现了阻塞操作，没有使用take， 当Engine从队列中取不到数据的时候 就for循环sleep，这种方式的好处在于 Engine虽然取不到数据，
+             但是可以经常获取到cpu，检查自己的状态。 当mysql binlog线程撕掉的时候 需要通知Engine线程退出，这个时候Engine就能够及时退出。
+             不会因为没有数据而一直阻塞导致线程无法退出
+             *
+             *
+             *
+             */
             // loop while the parent is started
             while (parent.isStarted()) {
                 try {
@@ -303,6 +331,9 @@ public class AsyncAppenderBase<E> extends UnsynchronizedAppenderBase<E> implemen
                     }
                 } catch (InterruptedException e1) {
                     // exit if interrupted
+                    /**
+                     * 队列中没有数据导致当前线程长期阻塞，如果想退出的话需要中断当前线程
+                     */
                     break;
                 }
             }
