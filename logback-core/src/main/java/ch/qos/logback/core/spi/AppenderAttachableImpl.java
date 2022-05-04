@@ -47,6 +47,10 @@ public class AppenderAttachableImpl<E> implements AppenderAttachable<E> {
         int size = 0;
         final Appender<E>[] appenderArray = appenderList.asTypedArray();
         final int len = appenderArray.length;
+        //todo 为什么这个地方不使用异步doappender
+        //比如我现在有一个logger，给这个logger配置了5个appender，这5个appender中可能有三个是异步appender，有两个是同步appender，
+        //如果使用for循环同步的方式 可能异步方式会很快 直接将日志放入到appender中就可以了，对于同步的appender需要并行执行。
+        //为什么这里不使用异步的方式并行将日志放置到appender中。
         for (int i = 0; i < len; i++) {
             appenderArray[i].doAppend(e);
             size++;
